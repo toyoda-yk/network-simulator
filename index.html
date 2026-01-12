@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>Untitled</title>
+    
+
+  </head>
+    
+  <body>
+  <!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>第18回 ネットワークトラブルシューティング実習</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --terminal-bg: #1e1e1e;
+            --terminal-text: #00ff00;
+            --cable-color: #555;
+            --cable-width: 4;
+            --comment-color: #88c0d0;
+            --error-color: #ff5555;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* --- 左側：ネットワーク図エリア --- */
+        #network-map {
+            flex: 2.8;
+            position: relative;
+            background-color: #ffffff;
+            border-right: 4px solid #ccc;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .area-box {
+            position: absolute;
+            border: 3px dashed #cbd5e0;
+            border-radius: 12px;
+            background-color: rgba(240, 244, 248, 0.5);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .area-label {
+            position: absolute;
+            top: -16px; left: 15px;
+            background: #fff;
+            padding: 0 10px;
+            font-size: 18px;
+            color: #555;
+            font-weight: bold;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+        }
+
+        .device {
+            position: absolute;
+            width: 90px; height: 90px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .device:hover { transform: scale(1.1); z-index: 100; }
+        .device:active { transform: scale(0.95); }
+
+        /* アイコン類 */
+        .icon-pc {
+            width: 50px; height: 35px;
+            background: #f0f0f0; border: 3px solid #333; border-radius: 4px; position: relative; margin-bottom: 5px;
+            background-image: linear-gradient(to bottom, #fff 80%, #eee 100%);
+        }
+        .icon-pc::after { content: ''; position: absolute; bottom: -8px; left: 15px; width: 20px; height: 5px; background: #333; }
+        .icon-pc::before { content: ''; position: absolute; bottom: -11px; left: 5px; width: 40px; height: 3px; background: #333; border-radius: 2px; }
+
+        .icon-server {
+            width: 36px; height: 60px; background: #2d3748; border-radius: 4px; position: relative;
+            box-shadow: 4px 4px 8px rgba(0,0,0,0.3); border: 1px solid #1a202c;
+        }
+        .icon-server::before { content: ''; position: absolute; top: 8px; left: 6px; width: 24px; height: 3px; background: #48bb78; box-shadow: 0 6px 0 #48bb78, 0 12px 0 #a0aec0; }
+        .icon-server::after { content: ''; position: absolute; bottom: 8px; left: 6px; width: 24px; height: 20px; background: repeating-linear-gradient(#4a5568, #4a5568 4px, #2d3748 5px); }
+
+        .icon-hub {
+            width: 70px; height: 26px; background: #4a5568; border-radius: 4px; display: flex; justify-content: space-evenly; align-items: center;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3); border: 2px solid #2d3748; position: relative;
+        }
+        .hub-port { width: 8px; height: 8px; background: #1a202c; border: 1px solid #718096; }
+        .icon-hub::after { content: ''; position: absolute; top: -4px; right: 5px; width: 4px; height: 4px; background: #48bb78; border-radius: 50%; box-shadow: -6px 0 0 #48bb78; }
+
+        .icon-router {
+            width: 60px; height: 60px; background: #fff; border: 4px solid #0056b3; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 900; color: #0056b3; box-shadow: 3px 3px 6px rgba(0,0,0,0.2); position: relative;
+        }
+        .icon-router::before { content: '⇄'; font-size: 24px; }
+
+        .icon-ap {
+            width: 40px; height: 40px; background: #fff; border: 2px solid #999; border-radius: 6px; position: relative;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.1); margin-top: 10px;
+        }
+        .icon-ap::before, .icon-ap::after { content: ''; position: absolute; bottom: 100%; width: 4px; height: 18px; background: #333; border-radius: 2px 2px 0 0; }
+        .icon-ap::before { left: 6px; transform: rotate(-20deg); transform-origin: bottom left; }
+        .icon-ap::after { right: 6px; transform: rotate(20deg); transform-origin: bottom right; }
+        .icon-ap span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; background: #48bb78; border-radius: 50%; box-shadow: 0 0 5px #48bb78; }
+
+        .device-info {
+            position: absolute; bottom: -30px; display: flex; flex-direction: column; align-items: center; width: 160px; text-align: center; pointer-events: none;
+        }
+        .device-label { font-size: 14px; font-weight: bold; color: #333; background: rgba(255,255,255,0.8); padding: 1px 6px; border-radius: 4px; }
+        .device-ip {
+            font-size: 14px; font-family: 'Consolas', monospace; color: #d32f2f; background: #fff; border: 1px solid #ccc;
+            padding: 2px 6px; border-radius: 4px; margin-top: 2px; font-weight: bold; box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* 自分のIP不明時のスタイル */
+        .ip-unknown {
+            color: #999; border: 1px dashed #999;
+        }
+
+        svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        .cable { stroke: var(--cable-color); stroke-width: var(--cable-width); fill: none; }
+
+        .packet {
+            position: absolute; width: 16px; height: 16px; background-color: #ff0055; border: 2px solid #fff; border-radius: 50%;
+            z-index: 20; display: none; box-shadow: 0 0 10px #ff0055;
+            transition: opacity 0.2s;
+        }
+
+        /* --- 右側：ターミナル --- */
+        #terminal-container {
+            flex: 1.2; background-color: var(--terminal-bg); color: var(--terminal-text); padding: 20px;
+            display: flex; flex-direction: column; font-family: 'Consolas', monospace; font-size: 16px;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.3); border-left: 2px solid #444;
+        }
+        #terminal-output { flex: 1; overflow-y: auto; white-space: pre-wrap; margin-bottom: 10px; line-height: 1.5; }
+        #terminal-input-line { display: flex; align-items: center; background: #333; padding: 5px; border-radius: 4px; }
+        #prompt { color: #00ff00; margin-right: 10px; font-weight: bold; }
+        #cmd-input { background: transparent; border: none; color: #fff; flex: 1; font-family: inherit; font-size: inherit; outline: none; font-weight: bold; }
+        
+        .jp-comment { color: var(--comment-color); font-size: 0.9em; margin-left: 1em; display: block; border-left: 3px solid var(--comment-color); padding-left: 8px; margin-top:4px; margin-bottom:4px;}
+        .jp-error { color: var(--error-color); font-size: 0.9em; margin-left: 1em; display: block; border-left: 3px solid var(--error-color); padding-left: 8px; margin-top:4px; margin-bottom:4px;}
+
+        /* --- モーダル --- */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: #fff; padding: 30px; border-radius: 12px; width: 500px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative; }
+        .modal h2 { margin-top: 0; color: #333; }
+        .close-btn { position: absolute; top: 10px; right: 15px; font-size: 24px; cursor: pointer; color: #999; }
+        .close-btn:hover { color: #333; }
+        .hidden { display: none !important; }
+
+        .btn-action { padding: 10px 25px; background: #0066cc; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 15px; transition: 0.3s; }
+        .btn-action:hover { background: #004499; transform: translateY(-2px); }
+        .btn-danger { background: #d32f2f; }
+        .btn-danger:hover { background: #b71c1c; }
+
+        table.info-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; text-align: left; }
+        table.info-table th { background-color: #f2f2f2; padding: 8px; border: 1px solid #ddd; }
+        table.info-table td { padding: 8px; border: 1px solid #ddd; }
+
+        #win-modal { background: rgba(0, 0, 0, 0.95); }
+        #win-modal h1 { color: #ffd700; font-size: 60px; margin: 0; text-shadow: 0 0 20px #ffd700; }
+        #win-modal p { color: #fff; font-size: 24px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="boot-modal" class="modal">
+        <div class="modal-content">
+            <h2 style="color:#d32f2f;">⚠ SYSTEM BOOT ERROR</h2>
+            <p>ネットワーク設定が未完了のため起動できません。<br>
+            以下のネットワーク情報から、正しい設定値を入力してください。</p>
+            <div style="background:#eee; padding:15px; margin:20px 0; font-family:monospace; font-size:20px; font-weight:bold; color:#333;">
+                Network: 192.168.1.0/24
+            </div>
+            <div style="text-align:left; margin: 0 50px;">
+                <label><strong>① サブネットマスク (10進数)</strong></label><br>
+                <input type="text" id="input-mask" placeholder="例: 255.0.0.0" style="width:100%; padding:8px; font-size:16px; margin-bottom:15px;">
+                <br>
+                <label><strong>② このネットワークに接続できる<br>　 最大のコンピュータ台数</strong></label><br>
+                <input type="number" id="input-hosts" placeholder="（ヒント：2^8 - 2）" style="width:100%; padding:8px; font-size:16px;">
+            </div>
+            <button class="btn-action" onclick="checkBoot()">システム起動</button>
+            <p id="boot-error" style="color:red; display:none; font-weight:bold; margin-top:10px;">❌ 設定値が間違っています</p>
+        </div>
+    </div>
+
+    <div id="device-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal('device-modal')">&times;</span>
+            <h2 id="modal-title">Device Info</h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <div id="win-modal" class="modal hidden">
+        <div class="modal-content" style="background:transparent; box-shadow:none; width:80%;">
+            <h1>MISSION COMPLETE!</h1>
+            <p>トラブルの原因を特定し、ネットワークを復旧させました！</p>
+            <div style="font-size: 80px;">🎉</div>
+            <button class="btn-action" onclick="location.reload()">もう一度遊ぶ</button>
+        </div>
+    </div>
+
+    <div id="network-map">
+        <svg id="cables-layer"></svg>
+
+        <div class="area-box" style="top:20px; left:40px; width:260px; height:140px;">
+            <div class="area-label">コンピュータ教室</div>
+        </div>
+        <div class="device" id="pc-comp" style="top:50px; left:60px;" onclick="showDeviceInfo('pc-comp')">
+            <div class="icon-pc"></div>
+            <div class="device-info"><span class="device-label">PC C</span><span class="device-ip">192.168.1.10</span></div>
+        </div>
+        <div class="device" id="hub-d" style="top:50px; left:200px;" onclick="showDeviceInfo('hub-d')">
+            <div class="icon-hub"><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div></div>
+            <div class="device-info"><span class="device-label">Hub D</span></div>
+        </div>
+
+        <div class="area-box" style="top:210px; left:40px; width:260px; height:220px;">
+            <div class="area-label">視聴覚教室</div>
+        </div>
+        <div class="device" id="pc-a" style="top:250px; left:60px;" onclick="showDeviceInfo('pc-a')">
+            <div class="icon-pc" style="border-color:#007bff;"></div>
+            <div class="device-info">
+                <span class="device-label" style="background:#e3f2fd;">PC A (あなた)</span>
+                <span id="my-ip-display" class="device-ip ip-unknown">???.???.???.???</span>
+            </div>
+        </div>
+        <div class="device" id="pc-sub" style="top:350px; left:60px;" onclick="showDeviceInfo('pc-sub')">
+            <div class="icon-pc"></div>
+            <div class="device-info"><span class="device-label">PC B</span><span class="device-ip">192.168.1.101</span></div>
+        </div>
+        <div class="device" id="hub-e" style="top:300px; left:200px;" onclick="showDeviceInfo('hub-e')">
+            <div class="icon-hub"><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div></div>
+            <div class="device-info"><span class="device-label">Hub E</span></div>
+        </div>
+
+        <div class="device" id="hub-c" style="top:220px; left:400px;" onclick="showDeviceInfo('hub-c')">
+            <div class="icon-hub"><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div></div>
+            <div class="device-info"><span class="device-label">Hub C</span></div>
+        </div>
+        <div class="device" id="server-1" style="top:80px; left:460px;" onclick="showDeviceInfo('server-1')">
+            <div class="icon-server"></div>
+            <div class="device-info"><span class="device-label">File Server 1</span><span class="device-ip">192.168.1.86</span></div>
+        </div>
+        <div class="device" id="hub-a" style="top:320px; left:600px;" onclick="showDeviceInfo('hub-a')">
+            <div class="icon-hub"><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div></div>
+            <div class="device-info"><span class="device-label">Hub A</span></div>
+        </div>
+        <div class="device" id="hub-b" style="top:420px; left:500px;" onclick="showDeviceInfo('hub-b')">
+            <div class="icon-hub"><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div><div class="hub-port"></div></div>
+            <div class="device-info"><span class="device-label">Hub B</span></div>
+        </div>
+
+        <div class="area-box" style="top:550px; left:40px; width:600px; height:120px;">
+            <div class="area-label">1年6組</div>
+        </div>
+        <div class="device" id="ap-6" style="top:570px; left:220px;" onclick="showDeviceInfo('ap-6')">
+            <div class="icon-ap"><span></span></div>
+            <div class="device-info"><span class="device-label">Wi-Fi AP</span><span class="device-ip">192.168.1.31</span></div>
+        </div>
+        <div class="device" id="server-2" style="top:570px; left:500px;" onclick="showDeviceInfo('server-2')">
+            <div class="icon-server"></div>
+            <div class="device-info"><span class="device-label">File Server 2</span><span class="device-ip">192.168.1.21</span></div>
+        </div>
+
+        <div class="device" id="router" style="top:320px; left:800px;" onclick="showDeviceInfo('router')">
+            <div class="icon-router">R</div>
+            <div class="device-info"><span class="device-label">Router</span><span class="device-ip">192.168.1.1</span></div>
+        </div>
+        <div style="position:absolute; top:310px; left:950px; font-size:80px; color:#aaa; cursor:default;">☁️</div>
+
+        <div id="packet" class="packet"></div>
+    </div>
+
+    <div id="terminal-container">
+        <div id="terminal-output">
+Microsoft Windows [Version 10.0.19045.2486]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Users\Student>
+        </div>
+        <div id="terminal-input-line">
+            <span id="prompt">C:\Users\Student&gt;</span>
+            <input type="text" id="cmd-input" autofocus autocomplete="off">
+        </div>
+    </div>
+
+<script>
+    // --- 状態管理 ---
+    let isIpIdentified = false; // ipconfigを実行したかどうかのフラグ
+
+    // --- デバイス定義 ---
+    const devices = {
+        'pc-a': { ip: '192.168.1.61', name: 'PC A (Main)', type: 'pc', status: 'active' },
+        'pc-sub': { ip: '192.168.1.101', name: 'PC B', type: 'pc', status: 'active' },
+        'hub-e': { ip: null, name: 'Hub E (Switch)', type: 'hub', status: 'active' },
+        'pc-comp': { ip: '192.168.1.10', name: 'PC Comp', type: 'pc', status: 'active' },
+        'hub-d': { ip: null, name: 'Hub D (Switch)', type: 'hub', status: 'active' },
+        'hub-c': { ip: null, name: 'Hub C (Backbone)', type: 'hub', status: 'active' },
+        'server-1': { ip: '192.168.1.86', name: 'File Server 1', type: 'server', status: 'active' },
+        'hub-a': { ip: null, name: 'Hub A (Backbone)', type: 'hub', status: 'broken' }, 
+        'hub-b': { ip: null, name: 'Hub B (Switch)', type: 'hub', status: 'active' },
+        'ap-6': { ip: '192.168.1.31', name: 'Wireless AP', type: 'ap', status: 'active' },
+        'server-2': { ip: '192.168.1.21', name: 'File Server 2', type: 'server', status: 'active' },
+        'router': { ip: '192.168.1.1', name: 'Default Gateway Router', type: 'router', status: 'active' },
+        'internet': { ip: '8.8.8.8', name: 'Internet', type: 'cloud', status: 'active' }
+    };
+
+    const connections = [
+        ['pc-a', 'hub-e'], ['pc-sub', 'hub-e'], ['hub-e', 'hub-c'],
+        ['pc-comp', 'hub-d'], ['hub-d', 'hub-c'], ['server-1', 'hub-c'],
+        ['hub-c', 'hub-a'], ['hub-a', 'hub-b'], ['hub-a', 'router'],
+        ['hub-b', 'ap-6'], ['hub-b', 'server-2']
+    ];
+
+    function checkBoot() {
+        const mask = document.getElementById('input-mask').value.trim();
+        const hosts = document.getElementById('input-hosts').value.trim();
+        if (mask === '255.255.255.0' && hosts === '254') {
+            document.getElementById('boot-modal').style.display = 'none';
+            document.getElementById('network-map').style.display = 'block';
+            printLine("System initialized. Network interface is up.");
+            printHelp(); 
+            // 起動直後のヒント
+            printLine("<span class='jp-comment'>（ヒント）まずは自分のIPアドレスを確認しましょう。コマンドは ipconfig です。</span>", true);
+            setTimeout(initMap, 200);
+        } else {
+            const err = document.getElementById('boot-error');
+            err.style.display = 'block';
+            err.innerHTML = "❌ 設定値が間違っています<br><small>ヒント: ホスト部は8ビットです</small>";
+        }
+    }
+
+    function printHelp() {
+        printLine("------------------------------------------------");
+        printLine("【コマンドの使い方】");
+        printLine(" ipconfig          : 自分のIPアドレスを確認します。");
+        printLine(" ping [IPアドレス] : 通信確認を行います。");
+        printLine("                     例) ping 192.168.1.1");
+        printLine(" help              : この説明を表示します。");
+        printLine("------------------------------------------------");
+    }
+
+    function showDeviceInfo(id) {
+        const dev = devices[id];
+        const modal = document.getElementById('device-modal');
+        const title = document.getElementById('modal-title');
+        const body = document.getElementById('modal-body');
+        modal.classList.remove('hidden');
+        title.innerText = dev.name;
+
+        // PC Aの場合、まだIPを知らないなら表示しない
+        let displayIp = dev.ip;
+        if (id === 'pc-a' && !isIpIdentified) {
+            displayIp = "Unknown (Use ipconfig)";
+        }
+
+        let repairButtonHtml = '';
+        if (dev.type !== 'pc' && dev.type !== 'cloud') {
+            repairButtonHtml = `
+                <hr>
+                <p>この機器の調子が悪い場合は、交換を試すことができます。</p>
+                <button class="btn-action btn-danger" onclick="repairDevice('${id}')">⚠ 機器を交換する</button>
+            `;
+        } else if (dev.type === 'pc') {
+             repairButtonHtml = `<hr><button class="btn-action" onclick="closeModal('device-modal')">閉じる</button>`;
+        }
+
+        if (dev.type === 'router') {
+            body.innerHTML = `
+                <p><strong>Device Status:</strong> Active</p>
+                <p><strong>IP Address:</strong> ${displayIp}</p>
+                <h3>Routing Table</h3>
+                <table class="info-table"><tr><th>Destination</th><th>Netmask</th><th>Gateway</th><th>Interface</th></tr><tr><td>192.168.1.0</td><td>255.255.255.0</td><td>0.0.0.0</td><td>Eth0 (LAN)</td></tr><tr><td>0.0.0.0</td><td>0.0.0.0</td><td>10.1.1.254</td><td>Eth1 (WAN)</td></tr></table>
+                <br>
+                ${repairButtonHtml}
+                <div style="margin-top:10px;"><button class="btn-action" style="background:#666;" onclick="closeModal('device-modal')">キャンセル</button></div>`;
+        } else {
+            body.innerHTML = `
+                <p><strong>Type:</strong> ${dev.type.toUpperCase()}</p>
+                <p><strong>Status:</strong> Active</p>
+                ${displayIp ? `<p><strong>IP:</strong> ${displayIp}</p>` : ''}
+                ${repairButtonHtml}`;
+        }
+    }
+
+    function repairDevice(id) {
+        if (confirm("本当にこの機器を交換しますか？\n(ネットワークが一時的に切断されます)")) {
+            alert("機器の交換が完了しました。\nシステムログ: Device rebooted successfully.");
+            if (id === 'hub-a' && devices[id].status === 'broken') {
+                devices[id].status = 'active';
+            }
+            closeModal('device-modal');
+        }
+    }
+
+    function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
+
+    function initMap() {
+        const svg = document.getElementById('cables-layer');
+        svg.innerHTML = ''; 
+        for (let id in devices) {
+            if (id === 'internet') { devices[id].x = 980; devices[id].y = 350; continue; }
+            const el = document.getElementById(id);
+            if(el) { devices[id].x = el.offsetLeft + el.offsetWidth / 2; devices[id].y = el.offsetTop + el.offsetHeight / 2; }
+        }
+        connections.forEach(conn => {
+            const d1 = devices[conn[0]]; const d2 = devices[conn[1]];
+            if (d1 && d2 && d1.x && d2.x) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', d1.x); line.setAttribute('y1', d1.y); line.setAttribute('x2', d2.x); line.setAttribute('y2', d2.y);
+                line.classList.add('cable'); svg.appendChild(line);
+            }
+        });
+    }
+
+    const input = document.getElementById('cmd-input');
+    const output = document.getElementById('terminal-output');
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const cmd = input.value.trim();
+            printLine("C:\\Users\\Student> " + cmd);
+            input.value = '';
+            parseCommand(cmd);
+        }
+    });
+
+    function printLine(text, isHtml = false) {
+        if(isHtml) output.innerHTML += text + "\n";
+        else output.innerText += text + "\n";
+        output.scrollTop = output.scrollHeight;
+    }
+
+    function parseCommand(cmdString) {
+        const parts = cmdString.split(/\s+/);
+        if(!parts[0] || parts[0] === '') return;
+        const cmd = parts[0].toLowerCase();
+
+        if (cmd === 'ping') {
+            // IP未確認の場合、Pingを禁止する
+            if (!isIpIdentified) {
+                printLine("<span class='jp-error'>⚠ エラー: 送信元の設定が確認できていません。</span>", true);
+                printLine("<span class='jp-error'>先に 'ipconfig' コマンドを実行して、自分のIPアドレスを確認してください。</span>", true);
+                return;
+            }
+
+            if (parts[1]) startPing(parts[1]);
+            else {
+                printLine("Usage: ping [IP Address]");
+                printLine("<span class='jp-error'>⚠ IPアドレスを指定してください (例: ping 192.168.1.1)</span>", true);
+            }
+        } else if (cmd === 'ipconfig') {
+            printLine("\nEthernet adapter Ethernet:");
+            printLine("   IPv4 Address. . . . : 192.168.1.61");
+            printLine("   Subnet Mask . . . . : 255.255.255.0");
+            printLine("   Default Gateway . . : 192.168.1.1\n");
+            printLine("<span class='jp-comment'>※ 自分のIPアドレスは 192.168.1.61 です。</span>", true);
+            
+            // フラグ更新と画面反映
+            if (!isIpIdentified) {
+                isIpIdentified = true;
+                const myIpEl = document.getElementById('my-ip-display');
+                myIpEl.innerText = "192.168.1.61";
+                myIpEl.classList.remove('ip-unknown');
+                myIpEl.style.color = "#d32f2f";
+                myIpEl.style.border = "1px solid #ccc";
+                alert("IPアドレスを確認しました！\nマップ上の表示が更新されました。\nこれで ping コマンドが使用可能です。");
+            }
+
+        } else if (cmd === 'help') {
+            printHelp();
+        } else if (cmd === 'cls') {
+            output.innerText = "";
+        } else {
+            printLine(`'${cmd}' is not recognized.`);
+            printLine("<span class='jp-error'>⚠ コマンドが見つかりません。「help」で使えるコマンドを確認してください。</span>", true);
+        }
+    }
+
+    async function startPing(targetIp) {
+        if (targetIp === '192.168.1.61' || targetIp === '127.0.0.1') {
+            printLine(`Pinging ${targetIp} with 32 bytes of data:`);
+            for(let i=0; i<4; i++) {
+                printLine(`Reply from ${targetIp}: bytes=32 time<1ms TTL=128`);
+                printLine("<span class='jp-comment'>✔ 応答あり: 自分自身です</span>", true);
+                await wait(200);
+            }
+            printLine(`\nPing statistics for ${targetIp}:`);
+            printLine(`    Packets: Sent = 4, Received = 4, Lost = 0`);
+            return;
+        }
+
+        if (targetIp === '192.168.1.255') {
+            printLine(`Pinging ${targetIp} with 32 bytes of data:`);
+            printLine("<span class='jp-comment'>⚠ ブロードキャストアドレスへの送信を開始します...</span>", true);
+            await broadcastAnimation('pc-a');
+            printLine("Broadcast sent to all reachable devices.");
+            return;
+        }
+
+        let targetId = null;
+        for(let id in devices) if(devices[id].ip === targetIp) targetId = id;
+        if(targetIp === '8.8.8.8') targetId = 'internet';
+
+        printLine(`Pinging ${targetIp} with 32 bytes of data:`);
+
+        if (!targetId) {
+            await wait(800);
+            printLine("Request timed out.");
+            printLine("<span class='jp-error'>✖ 宛先が見つかりません (存在しないIPです)</span>", true);
+            return;
+        }
+
+        const path = findPath('pc-a', targetId);
+        let successCount = 0;
+        
+        for (let i = 0; i < 4; i++) {
+            const result = await runPacketAnimation(path);
+            if (result.success) {
+                printLine(`Reply from ${targetIp}: bytes=32 time<1ms TTL=128`);
+                printLine("<span class='jp-comment'>✔ 応答あり: 通信成功！</span>", true);
+                successCount++;
+            } else {
+                printLine("Request timed out.");
+                printLine("<span class='jp-error'>✖ 応答なし: 途中で切れています</span>", true);
+            }
+            await wait(500);
+        }
+
+        printLine(`\nPing statistics for ${targetIp}:`);
+        printLine(`    Packets: Sent = 4, Received = ${successCount}, Lost = ${4-successCount}`);
+
+        if (targetIp === '192.168.1.1' && successCount === 4) {
+            setTimeout(() => { document.getElementById('win-modal').classList.remove('hidden'); }, 1000);
+        }
+    }
+
+    function findPath(start, end) {
+        let queue = [[start]];
+        let visited = new Set();
+        while(queue.length > 0) {
+            let path = queue.shift();
+            let node = path[path.length - 1];
+            if(node === end) return path;
+            if(!visited.has(node)) {
+                visited.add(node);
+                for(let conn of connections) {
+                    let next = null;
+                    if(conn[0]===node) next = conn[1];
+                    if(conn[1]===node) next = conn[0];
+                    if(next) queue.push([...path, next]);
+                }
+            }
+        }
+        return null;
+    }
+
+    async function runPacketAnimation(fullPath) {
+        if (!fullPath) return { success: false };
+        const packet = document.getElementById('packet');
+        packet.style.opacity = '1';
+        packet.style.display = 'block';
+
+        for (let i = 0; i < fullPath.length - 1; i++) {
+            const u = devices[fullPath[i]];
+            const v = devices[fullPath[i+1]];
+            if (v.status === 'broken') {
+                await animateMove(packet, u, v, true);
+                packet.style.opacity = '0';
+                await wait(200);
+                packet.style.display = 'none';
+                return { success: false };
+            }
+            await animateMove(packet, u, v, false);
+        }
+        for (let i = fullPath.length - 1; i > 0; i--) {
+            const u = devices[fullPath[i]];
+            const v = devices[fullPath[i-1]];
+            await animateMove(packet, u, v, false);
+        }
+        packet.style.display = 'none';
+        return { success: true };
+    }
+
+    async function broadcastAnimation(startId) {
+        let visited = new Set([startId]);
+        let currentLayer = [startId];
+        for(let i=0; i<3; i++) {
+            let nextLayer = [];
+            let promises = [];
+            for (let uId of currentLayer) {
+                const u = devices[uId];
+                for(let conn of connections) {
+                    let vId = null;
+                    if(conn[0]===uId) vId = conn[1];
+                    if(conn[1]===uId) vId = conn[0];
+                    if(vId && !visited.has(vId)) {
+                        visited.add(vId);
+                        const v = devices[vId];
+                        if (v.status === 'broken') {
+                            promises.push(createAndMovePacket(u, v, true));
+                        } else {
+                            promises.push(createAndMovePacket(u, v, false));
+                            nextLayer.push(vId);
+                        }
+                    }
+                }
+            }
+            if (promises.length > 0) await Promise.all(promises);
+            currentLayer = nextLayer;
+            if(currentLayer.length === 0) break;
+        }
+    }
+
+    function createAndMovePacket(from, to, isBroken) {
+        return new Promise(async resolve => {
+            const p = document.createElement('div');
+            p.className = 'packet';
+            p.style.display = 'block';
+            document.getElementById('network-map').appendChild(p);
+            await animateMove(p, from, to, isBroken);
+            if(isBroken) {
+                p.style.opacity = '0';
+                await wait(200);
+            }
+            p.remove();
+            resolve();
+        });
+    }
+
+    function animateMove(packetEl, from, to, isBroken) {
+        return new Promise(resolve => {
+            const startX = from.x; const startY = from.y;
+            const endX = isBroken ? startX + (to.x - startX)*0.6 : to.x;
+            const endY = isBroken ? startY + (to.y - startY)*0.6 : to.y;
+            const duration = 300; 
+            const startTime = performance.now();
+            function step(time) {
+                let progress = (time - startTime) / duration;
+                if(progress > 1) progress = 1;
+                const currX = startX + (endX - startX) * progress;
+                const currY = startY + (endY - startY) * progress;
+                packetEl.style.left = (currX - 8) + 'px';
+                packetEl.style.top = (currY - 8) + 'px';
+                if (progress < 1) requestAnimationFrame(step);
+                else resolve();
+            }
+            requestAnimationFrame(step);
+        });
+    }
+
+    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+    window.addEventListener('resize', () => { setTimeout(initMap, 200); });
+
+</script>
+</body>
+</html>
+    
+  </body>
+  
+</html>
